@@ -1,28 +1,28 @@
-# InfraPulse Query Service — Beginner Step-by-Step Guide (Hindi / Hinglish)
+# InfraPulse Query Service — Complete Beginner Setup Guide
 
-**Repository 2 of 3.** Backend browser aur database ke beech ka bridge hai. API (Application Programming Interface) ek URL ke through JSON data deta hai. FastAPI Python framework hai; Uvicorn HTTP server hai; psycopg PostgreSQL driver hai.
+**Repository 2 of 3 | Complete the database setup first**
 
-## Project ko samjhein (zero se)
+Python provides the application logic. FastAPI exposes REST endpoints, Uvicorn runs the API server, and psycopg connects to PostgreSQL. A collector sends resource measurements to the API. The backend does not create the database schema automatically.
 
-InfraPulse ek server monitoring application hai. Database data rakhta hai, backend data padhta/likhta hai aur frontend browser mein data dikhata hai. Agent CPU (processor ka usage), RAM (memory ka usage) aur disk (storage ka usage) bhejta hai.
+## Project overview and execution order
+
+InfraPulse is a three-tier infrastructure monitoring application. The collector sends CPU, memory (RAM), and disk usage measurements to the FastAPI backend. PostgreSQL stores those measurements and the React dashboard displays them.
 
 ```text
-Agent --> FastAPI --> PostgreSQL
+Collector --> FastAPI --> PostgreSQL
 Browser --> React/Vite --> FastAPI --> PostgreSQL
 ```
 
-| Order | Repository | Port | Kaam |
+| Order | Component | Port | Purpose |
 |---|---|---|---|
-| 1 | infrapulse-database | 5432 | Data store |
-| 2 | infrapulse-query-service | 8000 | API |
-| 3 | infrapulse-query-service (agent) | No listening port | Metrics send |
-| 4 | infrapulse-dashboard | 5173 | Browser UI |
+| 1 | infrapulse-database | 5432 | Persistent data storage |
+| 2 | infrapulse-query-service | 8000 | REST API |
+| 3 | infrapulse-query-service agent | None | Sends measurements |
+| 4 | infrapulse-dashboard | 5173 | Browser interface |
 
-**Important:** Ye guide Ubuntu 24.04 / Ubuntu WSL ke Bash terminal ko main environment maanti hai. Windows native instructions bhi niche hain. WSL use kar rahe hain to database, Python aur Node sab WSL ke andar install karein; Windows aur WSL ke commands mix na karein. Internet initial software installation ke liye chahiye. `localhost` ka matlab apna computer hai. Port ek service ka numbered connection point hai. Command blocks mein sirf commands copy karein, output ya prompt nahi. Ek command successful hone ke baad agli command chalayein.
+Use Ubuntu 24.04 or Ubuntu under WSL for the Bash commands in this guide. Native Windows alternatives are included where needed. Install all components in the same environment; do not mix native Windows and WSL installations. `localhost` refers to your own machine, and a port is a numbered network connection point. Run commands one at a time, checking the output before proceeding. Do not copy the terminal prompt or expected output.
 
-### Folder setup
-
-Teeno ZIP files ek hi `InfraPulse` folder mein extract karein. Ubuntu/WSL mein is guide ka assumed path `~/InfraPulse` hai. `~` aapka home folder hai. Agar ZIP Downloads mein hain, unhe file manager se home ke InfraPulse folder mein extract kar sakte hain. WSL mein `explorer.exe .` se current Linux folder Windows Explorer mein khulta hai.
+## Prepare your project folder
 
 ```bash
 mkdir -p ~/InfraPulse
@@ -31,7 +31,7 @@ pwd
 ls -a
 ```
 
-`mkdir -p` folder banata hai (already ho to error nahi), `cd` folder badalta hai, `pwd` current path aur `ls -a` hidden files samet contents dikhata hai. Extract ke baad structure aisa ho:
+`mkdir -p` creates a directory if needed; `cd` changes directories; `pwd` prints the current location; `ls -a` lists files including hidden files. Extract the three source archives here, or clone your three populated GitHub repositories here. The final layout must be:
 
 ```text
 InfraPulse/
@@ -40,20 +40,18 @@ InfraPulse/
   infrapulse-dashboard/
 ```
 
-Windows native mein `C:\Users\YOUR_NAME\InfraPulse` ke badle PowerShell mein `$HOME\InfraPulse` use karein. ZIP ko Extract All se isi folder mein extract karein. Double nested folders na banayein.
+Avoid double-nested directories. On native Windows, use `$HOME\InfraPulse` in PowerShell and Extract All in File Explorer. In WSL, `explorer.exe .` opens the current Linux directory in Windows Explorer.
 
-## 1. Database prerequisite check (Terminal 2)
+## 1. Verify the database before starting (Terminal 2)
 
 ```bash
 pg_isready -h localhost -p 5432
 psql -h localhost -U infrapulse -d infrapulse -c "SELECT count(*) FROM servers;"
 ```
 
-Expected: accepting connections aur fresh demo setup mein 3 servers. Agar nahi, database README se start karein. Backend database schema create nahi karta.
+The first command checks whether PostgreSQL accepts connections. The second verifies the application login and the servers table. On a freshly seeded database, expect a count of three. Complete the database README if either command fails.
 
-## 2. Python install aur check
-
-Ubuntu/WSL:
+## 2. Install Python
 
 ```bash
 sudo apt update
@@ -61,11 +59,11 @@ sudo apt install -y python3 python3-venv python3-pip curl
 python3 --version
 ```
 
-Python 3.10+ required; Python 3.12 recommended for this project. `python3-venv` isolated environment banane mein help karta hai. `curl` API test karne ka terminal tool hai.
+Python 3.10 or later is required; Python 3.12 is recommended. The venv package supports isolated dependencies, pip installs Python libraries and curl tests HTTP requests.
 
-Windows: https://www.python.org/downloads/ se Python 3.12 install karein, Add Python to PATH select karein. PowerShell mein `py --version` aur `py -3.12 --version` check karein.
+Native Windows: install Python 3.12 from https://www.python.org/downloads/ and enable Add Python to PATH. Open PowerShell and check `py --version` and `py -3.12 --version`.
 
-## 3. Virtual environment aur dependencies
+## 3. Create a virtual environment and install dependencies
 
 ```bash
 cd ~/InfraPulse/infrapulse-query-service
@@ -76,9 +74,9 @@ python -m pip install -r requirements.txt
 python -m pip check
 ```
 
-`-m venv` Python ka virtual environment module chalata hai, `.venv` folder mein isolated Python packages rakhta hai. `source` activate karta hai; prompt mein `(.venv)` dikhega. `pip install -r` file mein listed dependencies install karta hai. `pip check` dependency conflicts check karta hai. Expected `No broken requirements found.` Virtual environment har naye terminal mein activate karna hai.
+`-m venv` creates an isolated Python environment in `.venv`; `source` activates it, usually showing `(.venv)` in the prompt. `pip install -r` installs the libraries listed in requirements.txt. `pip check` checks dependency compatibility. Expect `No broken requirements found.` Activate the environment again in every new Bash terminal.
 
-Windows PowerShell alternative (activation ki zaroorat nahi):
+Native Windows PowerShell alternative (no activation required):
 
 ```powershell
 cd "$HOME\InfraPulse\infrapulse-query-service"
@@ -87,16 +85,16 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip check
 ```
 
-Aage Windows mein har Python command ki shuruaat `python` ke badle `.\.venv\Scripts\python.exe` se karein. Isse execution policy change karne ki zaroorat nahi.
+For subsequent Python commands on native Windows, replace `python` with `.\.venv\Scripts\python.exe` rather than changing PowerShell's execution policy.
 
-## 4. Environment file create karein
+## 4. Configure environment variables
 
 ```bash
 cp .env.example .env
 nano .env
 ```
 
-`cp` copy banata hai; `nano` text editor hai. Windows par `Copy-Item .env.example .env` aur `notepad .env` use karein. Existing `.env` ho to overwrite na karein. File mein ye values hain:
+Do not overwrite an existing configured .env file. `cp` copies the template; `nano` edits it. Save with Ctrl+O, Enter, then Ctrl+X. Windows alternatives: `Copy-Item .env.example .env` and `notepad .env`.
 
 ```dotenv
 POSTGRES_HOST=localhost
@@ -111,26 +109,32 @@ STALE_SECONDS=120
 
 | Setting | Meaning |
 |---|---|
-| POSTGRES_HOST / PORT | Database ka address / port |
-| POSTGRES_DB / USER | Database name / application login |
-| POSTGRES_PASSWORD | Step 2 database README wala exact password |
-| INGEST_TOKEN | Agent ko metrics bhejne ki permission dene wala shared secret |
-| ALERT_THRESHOLD | 85% ya usse zyada utilization par alert |
-| STALE_SECONDS | Last metric 120 seconds se purani ho to offline |
+| POSTGRES_HOST / POSTGRES_PORT | Database address and port |
+| POSTGRES_DB / POSTGRES_USER | Database name and application role |
+| POSTGRES_PASSWORD | Exact password created in the database setup |
+| INGEST_TOKEN | Shared secret authorizing incoming measurements |
+| ALERT_THRESHOLD | Utilization at or above 85% triggers an alert |
+| STALE_SECONDS | A sample older than 120 seconds makes a server offline |
 
-Nano save: Ctrl+O, Enter, Ctrl+X. `.env` local private file hai, GitHub par upload mat karein. Example password/token sirf local lab ke liye hain. Token change karein to Swagger aur agent mein bhi same value use karein. Dashboard resource bars ka color threshold fixed 85 hai; backend threshold badalne par bar color se status mismatch ho sakta hai.
+Keep .env private. If you change the token, use the same value in the collector and Swagger tests. Restart the backend after changing settings. The dashboard resource bar color uses a fixed threshold of 85, so changing the backend threshold can cause a color/status mismatch.
 
-## 5. API start karein (Terminal 2 running rakhein)
+## 5. Start the API (keep Terminal 2 open)
 
 ```bash
 python -m uvicorn app.main:app --env-file .env --host 127.0.0.1 --port 8000
 ```
 
-`app.main` Python module `app/main.py` hai; colon ke baad `app` FastAPI object hai. `--env-file` configuration load karta hai, host loopback par bind hota hai, port API ka number hai. Expected `Uvicorn running on http://127.0.0.1:8000`. Ctrl+C se stop; abhi stop nahi karna.
+`app.main` refers to app/main.py; `:app` selects the FastAPI object. `--env-file` loads settings, `--host` restricts access to the local machine, and `--port` selects the listening port. Expect Uvicorn running on http://127.0.0.1:8000. Ctrl+C stops the server; leave it running for now.
 
-Browser mein http://localhost:8000/docs open karein. Swagger interactive API page hai. http://localhost:8000/health/live par `{"status":"ok"}` aur http://localhost:8000/health/ready par `{"status":"ready"}` expected hai. Live sirf process batata hai; ready database table access verify karta hai.
+| URL | Expected result |
+|---|---|
+| http://localhost:8000/docs | Interactive Swagger documentation |
+| http://localhost:8000/health/live | {"status":"ok"} |
+| http://localhost:8000/health/ready | {"status":"ready"} |
 
-## 6. Demo agent start karein (NEW Terminal 3)
+Liveness checks the API process; readiness checks access to the database table.
+
+## 6. Start the demo collector (new Terminal 3)
 
 ```bash
 cd ~/InfraPulse/infrapulse-query-service
@@ -138,7 +142,7 @@ source .venv/bin/activate
 python -c "from dotenv import load_dotenv; load_dotenv(); from agent.demo import main; main()"
 ```
 
-Windows mein folder PowerShell se open karein aur upar bataya `.venv` Python executable use karein. `-c` inline Python chalata hai; `load_dotenv()` `.env` load karta hai; `main()` demo loop shuru karta hai. Har 15 seconds ke aas-paas 3 servers sample bhejte hain. Expected logs:
+`-c` executes inline Python. `load_dotenv()` loads the environment file; `main()` starts the simulation loop. The collector sends measurements for three simulated servers approximately every 15 seconds. Expected logs:
 
 ```text
 demo-web-01 201
@@ -146,99 +150,140 @@ demo-api-01 201
 demo-db-01 201
 ```
 
-201 ka matlab API ne sample accept kiya. Ye simulated data hai. Region names sirf labels hain. Terminal khula rakhein. Ab http://localhost:8000/api/v1/summary aur http://localhost:8000/api/v1/servers browser mein kholein. Demo-db-01 ki disk 91% hone ke karan warning expected hai.
+HTTP 201 means the measurement was accepted. Leave this terminal running. Open http://localhost:8000/api/v1/summary and http://localhost:8000/api/v1/servers to see JSON results. The demo database server has 91% disk usage and should show a warning with the default threshold.
 
-## 7. API ko manually test karein (Swagger ya NEW terminal)
+## 7. Test the API manually
 
-http://localhost:8000/docs par `POST /api/v1/metrics` expand karein, Try it out click karein. `x-ingest-token` mein `.env` token enter karein. Request body:
+Open http://localhost:8000/docs, expand POST /api/v1/metrics, choose Try it out and enter your INGEST_TOKEN in x-ingest-token. Use this JSON request body:
 
 ```json
 {"hostname":"test-server-01","region":"local","cpu":95,"memory":40,"disk":30}
 ```
 
-Execute click karein. Expected HTTP 201, `accepted: true` aur numeric server_id. `GET /api/v1/alerts` se CPU alert verify karein. Same body mein CPU 20 karke dobara POST karein. Active alerts se test-server ka CPU alert hatna chahiye; `GET /api/v1/alerts?active=false` mein resolved_at populated hoga. Wrong token se 401, CPU 101 se valid token ke saath 422 expected hai. Test server bhi inventory mein register ho jayega. Swagger mein GET endpoints ke Try it out se test karein.
+Click Execute. Expect HTTP 201, accepted: true and a numeric server_id. GET /api/v1/alerts should show a CPU alert for this test server. Submit the same body with CPU changed to 20; the alert should resolve. GET /api/v1/alerts?active=false includes resolved alerts and should show resolved_at. An incorrect token should return 401 for valid input; CPU 101 should return 422 with a valid token. The test server remains in the inventory.
 
-Ubuntu curl alternative:
+Command-line alternatives:
 
 ```bash
 curl -i http://localhost:8000/health/ready
 curl -s http://localhost:8000/api/v1/summary
 ```
 
-`-i` HTTP status/headers dikhata hai; `-s` progress hide karta hai. Windows PowerShell mein `curl.exe` use karein.
+`-i` includes HTTP headers and status; `-s` hides progress. On Windows PowerShell use curl.exe.
 
-| Method | Path | Meaning |
+| Method | Path | Purpose |
 |---|---|---|
-| GET | /health/live | API running |
-| GET | /health/ready | Database reachable |
-| GET | /api/v1/summary | Total, online, warning, offline, average CPU |
-| GET | /api/v1/servers | Latest server metrics |
-| GET | /api/v1/servers/{server_id}/metrics | History; ID ko actual numeric ID se replace karein |
-| GET | /api/v1/alerts | Active alerts (active=false includes resolved) |
-| POST | /api/v1/metrics | Metrics insert; token required |
+| GET | /health/live | API process health |
+| GET | /health/ready | Database readiness |
+| GET | /api/v1/summary | Server counts and average CPU |
+| GET | /api/v1/servers | Latest measurement and status for each server |
+| GET | /api/v1/servers/{server_id}/metrics | Historical measurements; replace server_id with a numeric ID |
+| GET | /api/v1/alerts | Active alerts; active=false includes resolved alerts |
+| POST | /api/v1/metrics | Store a measurement; ingestion token required |
 
-## 8. Real computer monitoring (optional, demo ke badle)
+History supports hours=1–168 and limit=1–2000. Alerts support limit=1–500. Offline servers are excluded from the average CPU. Missing or stale samples are offline; recent measurements above or equal to the threshold are warnings; otherwise the server is online.
 
-Demo Terminal 3 mein Ctrl+C dabayein; API Terminal 2 running rehne dein. Terminal 3 mein:
+## 8. Optional real machine monitoring
+
+Stop the demo collector with Ctrl+C in Terminal 3, leaving the API running. Then run:
 
 ```bash
 python -m pip install -r agent/requirements.txt
 python -c "from dotenv import load_dotenv; load_dotenv(); from agent.collector import main; main()"
 ```
 
-Windows par command se pehle `$env:MONITOR_PATH = 'C:/'` set karein, phir `.venv` Python executable use karein. `psutil` current host CPU, RAM aur disk padhta hai. Expected `Metrics sent: 201`. WSL collector WSL environment ki measurements deta hai, native Windows ki nahi. Demo rows database mein rehti hain aur 120 seconds baad offline ho sakti hain. Remote monitoring is local guide ka part nahi hai.
+The psutil library reads actual CPU, RAM and disk usage of the current environment. Expect `Metrics sent: 201`. On native Windows set `$env:MONITOR_PATH = 'C:/'` and use the virtual environment executable described earlier. WSL measurements describe WSL, not the native Windows host. Demo records remain in the database and can become offline when the collector stops.
 
-## 9. Har source file ka kaam
+## 9. Source files and responsibilities
 
-| File | Meaning |
+| File | Purpose |
 |---|---|
-| app/main.py | FastAPI routes, queries, ingestion aur alert logic |
-| app/config.py | Environment settings load karta hai |
-| app/database.py | psycopg connection/transaction manage karta hai |
-| app/schemas.py | Incoming JSON fields aur 0–100 range validate karta hai |
-| app/logic.py | Online/warning/offline decide karta hai |
+| app/main.py | FastAPI routes, database queries, ingestion and alert recovery |
+| app/config.py | Environment settings |
+| app/database.py | PostgreSQL connections and transactions |
+| app/schemas.py | Input JSON validation and utilization ranges |
+| app/logic.py | Determines online, warning and offline status |
 | app/__init__.py | Python package marker |
-| agent/demo.py | Fake server metrics har 15 seconds bhejta hai |
-| agent/collector.py | Real machine metrics read/send karta hai |
-| agent/requirements.txt | Real collector ki dependency |
-| requirements.txt | API ki dependencies |
+| agent/demo.py | Simulates three servers |
+| agent/collector.py | Reads and submits actual machine measurements |
+| agent/requirements.txt | Real collector dependencies |
+| requirements.txt | API dependencies |
 | .env.example | Configuration template |
-| .gitignore, LICENSE, README.md | Git exclusions, license, guide |
+| .gitignore, LICENSE, README.md | Git exclusions, license and documentation |
+
+The ingestion endpoint registers or updates a server, inserts a metric sample, opens or updates alerts at the threshold, and resolves alerts when utilization drops. Parameterized SQL is used for incoming values. A database operation error returns HTTP 503.
 
 ## 10. Troubleshooting
 
-| Symptom | Solution |
+| Error | Action |
 |---|---|
-| ModuleNotFoundError | Correct venv Python aur pip install check |
-| Could not import app | Repo root mein cd karein |
-| 503 ready | PostgreSQL running, tables aur .env credentials check |
-| 401 ingestion | Agent/Swagger token API token se match karein; change ke baad API restart |
-| 422 | JSON fields/ranges check |
-| Address already in use | Existing API terminal stop karein ya port 8000 free karein |
-| Demo retry | API ready URL aur API logs check |
-| Offline | Agent running aur recent samples check |
+| ModuleNotFoundError | Check virtual environment and pip installation |
+| Could not import app | Run Uvicorn from the repository root |
+| 503 readiness error | Check PostgreSQL, schema and .env credentials |
+| 401 ingestion | Match the token in API and collector; restart API after changes |
+| 422 validation | Check JSON field names and utilization ranges |
+| Address already in use | Stop the conflicting process or free port 8000 |
+| Collector retries | Check API readiness and logs |
+| Offline servers | Check collector and recent measurement timestamps |
 
-## 11. Next repository
+## 11. Next step
 
-Terminal 2 (API) aur Terminal 3 (agent) khule rakhein. Ab dashboard README open karein. Backend ko stop karne ke liye Ctrl+C, venv se exit ke liye `deactivate` (Bash activated environment only).
+Keep Terminal 2 (API) and Terminal 3 (collector) open. Follow `infrapulse-dashboard/README.md` to start the browser interface. To stop the backend later, press Ctrl+C. Use `deactivate` to leave an activated Bash virtual environment.
 
-## GitHub par upload (application chalane ke liye optional)
+## Publish this repository to GitHub using Git clone (optional)
 
-Ubuntu par `sudo apt install -y git` se Git install karein. Windows par https://git-scm.com/downloads se Git install karein. `git --version` se verify karein. GitHub.com par New repository banayein, is repo ke exact naam se. README/license initialize na karein. Public karne se pehle secrets check karein.
+These instructions are for publishing the supplied source code to your own GitHub account, not for running the application. Publish each repository separately.
+
+1. Install Git (`sudo apt install -y git` on Ubuntu, or https://git-scm.com/downloads on Windows). Verify with `git --version`.
+2. Open https://github.com/new and create an empty repository named `infrapulse-query-service`. Do not initialize it with a README, license or .gitignore. Choose public or private visibility as appropriate.
+3. Configure your Git identity once, using your own name and email.
 
 ```bash
 git config --global user.name "Your Name"
 git config --global user.email "your-email@example.com"
-git init -b main
+```
+
+4. Clone into a separate publishing directory so that it does not conflict with your extracted source folder. Replace `YOUR_USERNAME` with your GitHub username.
+
+```bash
+mkdir -p ~/InfraPulse-publish
+cd ~/InfraPulse-publish
+git clone https://github.com/YOUR_USERNAME/infrapulse-query-service.git
+cd infrapulse-query-service
+```
+
+An empty-repository warning is normal for a newly created repository. Copy the contents of the supplied source directory into this cloned directory, including hidden files such as `.gitignore` and `.env.example` where present. Do not replace the cloned `.git` directory. Do not copy actual secrets, database dumps, virtual environments, dependencies or build output.
+
+5. Check the files and the destination repository before staging and committing.
+
+```bash
+git remote -v
+git status
 git add .
 git status --short
+```
+
+`git clone` automatically configures the remote named `origin`; no `git init` or `git remote add` is necessary. `git add` stages files; `git status` lets you review them. Remove any staged secrets before committing.
+
+```bash
 git commit -m "Initial InfraPulse project"
-git remote add origin https://github.com/YOUR_USERNAME/infrapulse-query-service.git
+git branch -M main
 git push -u origin main
 ```
 
-In commands ko **isi repository ke root folder mein** chalayein. `YOUR_USERNAME` apna GitHub username aur `REPO_NAME` is repository ka naam rakhein. `git init` local repo banata hai, `add` files stage karta hai, `status` review karata hai, `commit` snapshot banata hai, `remote` GitHub URL jodta hai, `push` upload karta hai. HTTPS authentication ke liye Git Credential Manager/browser login ya GitHub token use karein, account password nahi. `.env`, database dumps, `.venv`, `node_modules` aur `dist` upload nahi karne hain; `.gitignore` inhe exclude karta hai. `git status` mein secret dikhe to commit se pehle hata dein. Existing remote ho to `git remote -v` check karein; dobara init/push blindly na karein.
+`git commit` records a snapshot, `git branch -M main` names the branch, and `git push` uploads the commit and sets the upstream branch. Authenticate using the browser/Git Credential Manager or a GitHub token, not your account password. Refresh the GitHub repository page and confirm the source files and README are present.
 
-## Verification note
+For an existing cloned repository, replace its README.md and run only:
 
-Commands source configuration ke against review kiye gaye hain. Live database, dependency installation aur browser end-to-end test is packaging environment mein execute nahi hua. Neeche/uper diye expected results acceptance checks hain, actual test results nahi. Local lab credentials examples hain; public access se pehle authentication, HTTPS aur secure secrets configure karein.
+```bash
+git status
+git add README.md
+git commit -m "Improve English setup documentation"
+git push
+```
+
+Never commit `.env`, real passwords, tokens, private SSH keys, database dumps, `.venv`, `node_modules` or `dist`. Review the staged file list even when `.gitignore` is present.
+
+## Verification and security note
+
+The instructions describe the supplied source configuration and expected acceptance results. They are not a claim that a live database, dependency installation or end-to-end browser deployment has been executed. The sample credentials are for a private local lab. Configure authentication, HTTPS and secure secrets before any public deployment. Read API endpoints do not currently require authentication.
